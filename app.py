@@ -11,24 +11,33 @@ import re
 icon = Image.open("favicon.png")
 
 st.set_page_config(
-    page_title="I-Tower LCRG Progress Dashboard",
-    page_icon=icon,
+    page_title="I-Tower Progress – Lake City Roof Gardens",
+    page_icon="favicon.png",  # your existing favicon
     layout="wide",
 )
 
-# ---------- SOCIAL / OG TAGS ----------
+# ---------- WHATSAPP / OG PREVIEW TAGS ----------
 st.markdown(
     """
-<head>
-    <meta property="og:title" content="I-TOWER LCRG Progress Dashboard" />
-    <meta property="og:description" content="Live Construction Progress – Lake City Roof Gardens" />
-    <meta property="og:image" content="https://raw.githubusercontent.com/Muneebbutt78/tower-progress-app/main/whatsapp_banner.png?v=3" />
-    <meta property="og:url" content="https://tower-progress-app-cazgj3dwlu4qufudesz7af.streamlit.app/" />
+    <meta property="og:title" content="I-Tower Progress – Lake City Roof Gardens" />
+    <meta property="og:description" content="Live apartment-wise construction status dashboard for I-Tower, Lake City Roof Gardens." />
     <meta property="og:type" content="website" />
-</head>
-""",
+    <meta property="og:url" content="https://tower-progress-app.streamlit.app/" />
+
+    <!-- IMPORTANT: use a PUBLIC, ABSOLUTE URL for the banner -->
+    <meta property="og:image" content="https://tower-progress-app.streamlit.app/whatsapp_og_banner.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- Twitter / X (also used by some other apps) -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="I-Tower Progress – Lake City Roof Gardens" />
+    <meta name="twitter:description" content="Live apartment-wise construction status dashboard for I-Tower, Lake City Roof Gardens." />
+    <meta name="twitter:image" content="https://tower-progress-app.streamlit.app/whatsapp_og_banner.png" />
+    """,
     unsafe_allow_html=True,
 )
+
 
 # ---------- OPTIONAL PDF (REPORTLAB) ----------
 try:
