@@ -1,3 +1,6 @@
 streamlit
 pandas
+altair
 openpyxl
+pillow
+reportlab
