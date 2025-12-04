@@ -1,15 +1,4 @@
 import streamlit as st
-
-st.markdown("""
-<head>
-    <meta property="og:title" content="I-TOWER LCRG Progress Dashboard" />
-    <meta property="og:description" content="Live Construction Progress – Lake City Roof Gardens" />
-    <meta property="og:image" content="https://raw.githubusercontent.com/Muneebbutt78/tower-progress-app/main/whatsapp_banner.png" />
-    <meta property="og:url" content="https://tower-progress-app-cazgj3dwlu4qufudesz7af.streamlit.app/" />
-    <meta property="og:type" content="website" />
-</head>
-""", unsafe_allow_html=True)
-
 from PIL import Image
 import pandas as pd
 import altair as alt
@@ -18,18 +7,34 @@ from io import BytesIO
 from zipfile import ZipFile
 import re
 
+# ---------- PAGE CONFIG (must be first Streamlit call) ----------
 icon = Image.open("favicon.png")
 
 st.set_page_config(
     page_title="I-Tower LCRG Progress Dashboard",
     page_icon=icon,
-    layout="wide"
+    layout="wide",
 )
 
-# ---------- PDF REPORTLIB ----------
+# ---------- SOCIAL / OG TAGS ----------
+st.markdown(
+    """
+<head>
+    <meta property="og:title" content="I-TOWER LCRG Progress Dashboard" />
+    <meta property="og:description" content="Live Construction Progress – Lake City Roof Gardens" />
+    <meta property="og:image" content="https://raw.githubusercontent.com/Muneebbutt78/tower-progress-app/main/whatsapp_banner.png" />
+    <meta property="og:url" content="https://tower-progress-app-cazgj3dwlu4qufudesz7af.streamlit.app/" />
+    <meta property="og:type" content="website" />
+</head>
+""",
+    unsafe_allow_html=True,
+)
+
+# ---------- OPTIONAL PDF (REPORTLAB) ----------
 try:
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas
+
     REPORTLAB_AVAILABLE = True
 except ImportError:
     REPORTLAB_AVAILABLE = False
@@ -53,7 +58,7 @@ ACTIVITY_COLS = [
     "Cleaning",
 ]
 
-# Updated weights
+# Weights (sum = 1.0)
 WEIGHTS = {
     "MEP Work": 0.10,
     "Ceiling": 0.15,
@@ -76,34 +81,70 @@ BASE_DIR = Path(__file__).parent
 LAKECITY_LOGO = BASE_DIR / "assets" / "lakecity_logo.png"
 UNISON_LOGO = BASE_DIR / "assets" / "unison_logo.png"
 
+
 # ------------------------------------------------------------
 # ---------------------- UTILITIES ---------------------------
 # ------------------------------------------------------------
-
 def clamp01(x: float) -> float:
+    """Clamp a numeric value to [0, 1]."""
     return max(0.0, min(float(x), 1.0))
 
+
 def compute_overall(row_like: pd.Series) -> float:
+    """Weighted overall progress for a single apartment (0–1)."""
     return sum(row_like[col] * WEIGHTS[col] for col in ACTIVITY_COLS)
 
+
 def compute_overall_from_means(means: pd.Series) -> float:
+    """Weighted overall progress using mean values (0–1)."""
     return sum(means[col] * WEIGHTS[col] for col in ACTIVITY_COLS)
 
+
 def color_progress(val):
+    """Cell background color based on percentage value (0–100)."""
     if pd.isna(val):
         return ""
     if val < 40:
-        return "background-color: #ffcccc"
+        return "background-color: #ffcccc"  # light red
     elif val < 70:
-        return "background-color: #fff7b3"
+        return "background-color: #fff7b3"  # light yellow
     else:
-        return "background-color: #ccffcc"
+        return "background-color: #ccffcc"  # light green
+
+
+def normalize_activity_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Ensure all activity columns are stored as 0–1 inside the app.
+
+    - If column max <= 1.01 → assume already 0–1, do nothing.
+    - If column max > 1.01 and <= 100.1 → assume 0–100 %, divide by 100.
+    """
+    for col in ACTIVITY_COLS:
+        if col not in df.columns:
+            continue
+        col_max = df[col].max()
+        if pd.isna(col_max):
+            continue
+
+        if col_max <= 1.01:
+            # Already 0–1 fractions; no change
+            continue
+        elif col_max <= 100.1:
+            # Looks like percentages; convert to 0–1
+            df[col] = df[col] / 100.0
+
+    return df
 
 
 # ---------- PDF Generators (no Vs columns, no icons) ----------
-# Apartment PDF
-def make_pdf_apartment(apt_no, floor_value, apt_overall, floor_overall,
-                       tower_overall, table_df: pd.DataFrame) -> bytes:
+def make_pdf_apartment(
+    apt_no,
+    floor_value,
+    apt_overall,
+    floor_overall,
+    tower_overall,
+    table_df: pd.DataFrame,
+) -> bytes:
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
@@ -111,9 +152,11 @@ def make_pdf_apartment(apt_no, floor_value, apt_overall, floor_overall,
     y = height - 50
     c.setFont("Helvetica-Bold", 14)
     c.drawString(40, y, PDF_TITLE)
+
     y -= 30
     c.setFont("Helvetica", 11)
     c.drawString(40, y, f"View: Apartment #{apt_no} (Floor {floor_value})")
+
     y -= 20
     c.setFont("Helvetica", 10)
     c.drawString(40, y, f"Apartment Total Progress: {apt_overall * 100:.1f}%")
@@ -135,6 +178,7 @@ def make_pdf_apartment(apt_no, floor_value, apt_overall, floor_overall,
 
     c.setFont("Helvetica", 9)
     y -= 15
+
     for _, r in table_df.iterrows():
         if y < 60:
             c.showPage()
@@ -165,8 +209,12 @@ def make_pdf_apartment(apt_no, floor_value, apt_overall, floor_overall,
     return buffer.getvalue()
 
 
-def make_pdf_floor(floor_value, floor_overall, tower_overall, table_df: pd.DataFrame) -> bytes:
-    """Generate PDF report for Floor View."""
+def make_pdf_floor(
+    floor_value,
+    floor_overall,
+    tower_overall,
+    table_df: pd.DataFrame,
+) -> bytes:
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
@@ -189,16 +237,15 @@ def make_pdf_floor(floor_value, floor_overall, tower_overall, table_df: pd.DataF
     c.setFont("Helvetica-Bold", 10)
     c.drawString(40, y, "Activity-wise Comparison (Floor / I-Tower)")
 
-    # Header
     y -= 20
     c.setFont("Helvetica-Bold", 9)
     c.drawString(40, y, "Activity")
     c.drawString(240, y, "Floor %")
     c.drawString(310, y, "Tower %")
 
-    # Rows
     c.setFont("Helvetica", 9)
     y -= 15
+
     for _, r in table_df.iterrows():
         if y < 60:
             c.showPage()
@@ -220,6 +267,7 @@ def make_pdf_floor(floor_value, floor_overall, tower_overall, table_df: pd.DataF
 
     c.setFont("Helvetica-Oblique", 8)
     c.drawString(40, 35, PDF_FOOTER)
+
     c.showPage()
     c.save()
     buffer.seek(0)
@@ -227,7 +275,6 @@ def make_pdf_floor(floor_value, floor_overall, tower_overall, table_df: pd.DataF
 
 
 def make_pdf_tower(tower_overall, table_df: pd.DataFrame) -> bytes:
-    """Generate PDF report for Tower Summary."""
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
@@ -248,15 +295,14 @@ def make_pdf_tower(tower_overall, table_df: pd.DataFrame) -> bytes:
     c.setFont("Helvetica-Bold", 10)
     c.drawString(40, y, "Activity-wise I-Tower Progress")
 
-    # Header
     y -= 20
     c.setFont("Helvetica-Bold", 9)
     c.drawString(40, y, "Activity")
     c.drawString(260, y, "Tower %")
 
-    # Rows
     c.setFont("Helvetica", 9)
     y -= 15
+
     for _, r in table_df.iterrows():
         if y < 60:
             c.showPage()
@@ -276,6 +322,7 @@ def make_pdf_tower(tower_overall, table_df: pd.DataFrame) -> bytes:
 
     c.setFont("Helvetica-Oblique", 8)
     c.drawString(40, 35, PDF_FOOTER)
+
     c.showPage()
     c.save()
     buffer.seek(0)
@@ -288,13 +335,8 @@ def load_photos_zip(zip_bytes: bytes):
     """
     Read a ZIP of images and assign them to apartments.
 
-    Logic:
-    - Each .jpg/.jpeg/.png file whose name contains a 3+ digit number
-      is mapped to that apartment number.
-
-      Examples:
-        '101_living.jpg'   -> 101
-        'apt205_kitchen.png' -> 205
+    Each .jpg/.jpeg/.png file whose name contains a 3+ digit number
+    is mapped to that apartment number.
     """
     if not zip_bytes:
         return {}
@@ -304,10 +346,13 @@ def load_photos_zip(zip_bytes: bytes):
     with ZipFile(BytesIO(zip_bytes)) as z:
         for name in z.namelist():
             lower = name.lower()
-            if not (lower.endswith(".jpg") or lower.endswith(".jpeg") or lower.endswith(".png")):
+            if not (
+                lower.endswith(".jpg")
+                or lower.endswith(".jpeg")
+                or lower.endswith(".png")
+            ):
                 continue
 
-            # find a 3+ digit number in the filename
             m = re.search(r"(\d{3,})", name)
             if not m:
                 continue
@@ -343,9 +388,8 @@ with col_logo_right:
 def load_data(uploaded_file=None):
     """
     Load data from uploaded Excel or default EXCEL_FILE.
-    Shows friendly Streamlit errors instead of Python tracebacks.
+    All activity columns are normalized to 0–1 internally.
     """
-    # Try uploaded file first
     try:
         if uploaded_file is not None:
             df = pd.read_excel(uploaded_file, sheet_name=SHEET_NAME, engine="openpyxl")
@@ -364,7 +408,6 @@ def load_data(uploaded_file=None):
         st.error(f"❌ Error reading Excel file: {e}")
         st.stop()
 
-    # Check essential columns
     required_cols = ["Apartment No", "Floor"] + ACTIVITY_COLS
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
@@ -374,26 +417,20 @@ def load_data(uploaded_file=None):
         )
         st.stop()
 
-    # Keep only rows with numeric apartment numbers
+    # Keep only numeric apartment numbers
     df = df[pd.to_numeric(df["Apartment No"], errors="coerce").notna()].copy()
     df["Apartment No"] = df["Apartment No"].astype(int)
 
-    # Normalize 0–1 if values look like percentages (>1)
-    for col in ACTIVITY_COLS:
-        if (df[col] > 1).any():
-            df[col] = df[col] / 100.0
+    # Normalize activity columns to 0–1
+    df = normalize_activity_columns(df)
 
     return df
 
 
 # ----------------- SIDEBAR -----------------
-# HIDE UPLOAD CONTROLS
-# st.sidebar.title("🔧 Controls")
-# uploaded_excel = st.sidebar.file_uploader("Upload progress Excel (optional)", type=["xlsx"])
-# photos_zip_file = st.sidebar.file_uploader("Upload Apartment Photos ZIP (optional)", type=["zip"])
 st.sidebar.title("🔧 Controls")
 
-# ---- HIDE FILE UPLOADS ----
+# File uploads intentionally disabled for now:
 # uploaded_excel = st.sidebar.file_uploader("Upload progress Excel (optional)", type=["xlsx"])
 # photos_zip_file = st.sidebar.file_uploader("Upload Apartment Photos ZIP (optional)", type=["zip"])
 # if photos_zip_file is not None:
@@ -401,11 +438,9 @@ st.sidebar.title("🔧 Controls")
 # else:
 #     photos_dict = {}
 
-# Force using default Excel file & no photos
 uploaded_excel = None
 photos_dict = {}
 
-# Load default Excel file
 df = load_data(uploaded_excel)
 
 if df.empty:
@@ -435,9 +470,11 @@ st.sidebar.info(
 
 # ----------------- PAGE TITLE -----------------
 st.markdown(
-    "<h1 style='display:flex;align-items:center;gap:10px;'>"
-    "🏗️ I-Tower Apartment Progress Dashboard"
-    "</h1>",
+    """
+<h1 style='display:flex;align-items:center;gap:10px;'>
+🏗️ I-Tower Apartment Progress Dashboard
+</h1>
+""",
     unsafe_allow_html=True,
 )
 
@@ -457,7 +494,6 @@ with tab_apt:
         floor_df = df[df["Floor"] == floor_value]
         floor_means = floor_df[ACTIVITY_COLS].mean()
 
-        # Overall metrics
         apt_overall = compute_overall(row)
         floor_overall = compute_overall_from_means(floor_means)
 
@@ -469,7 +505,6 @@ with tab_apt:
         with c1:
             st.metric("Apartment No", f"{int(row['Apartment No'])}")
             st.write(f"Floor: **{floor_value}**")
-            # Photo status
             if photos_dict:
                 if int(row["Apartment No"]) in photos_dict:
                     st.success("📷 Photos available for this apartment.")
@@ -504,17 +539,14 @@ with tab_apt:
 
         table_df = pd.DataFrame(table)
 
-        # Style with highlights
         table_df_styled = (
-            table_df.style
-            .format(
+            table_df.style.format(
                 {
                     "Apartment Progress (%)": "{:.1f}",
                     "Floor Progress (%)": "{:.1f}",
                     "I-Tower Progress (%)": "{:.1f}",
                 }
-            )
-            .map(
+            ).map(
                 color_progress,
                 subset=[
                     "Apartment Progress (%)",
@@ -526,7 +558,7 @@ with tab_apt:
 
         st.dataframe(table_df_styled, use_container_width=True)
 
-        # Optional chart
+        # Optional bar chart
         show_chart = st.checkbox(
             "Show graphical comparison (bar chart) 📈", key="apt_chart"
         )
@@ -555,10 +587,12 @@ with tab_apt:
             )
             st.altair_chart(chart, use_container_width=True)
 
-        # 📷 Apartment Photos Viewer
+        # Photos panel
         st.markdown("### 📷 Apartment Photos")
         if not photos_dict:
-            st.info("Upload a ZIP file with apartment photos in the sidebar to view images.")
+            st.info(
+                "Upload a ZIP file with apartment photos in the sidebar to view images."
+            )
         else:
             imgs = photos_dict.get(int(row["Apartment No"]), [])
             if not imgs:
@@ -581,7 +615,7 @@ with tab_apt:
                         with col2:
                             st.image(img, use_container_width=True)
 
-        # PDF download for Apartment View
+        # Apartment PDF download
         if REPORTLAB_AVAILABLE:
             pdf_bytes = make_pdf_apartment(
                 apt_no=int(row["Apartment No"]),
@@ -598,7 +632,9 @@ with tab_apt:
                 mime="application/pdf",
             )
         else:
-            st.info("To enable PDF download, install reportlab: `pip install reportlab`.")
+            st.info(
+                "To enable PDF download, install reportlab: `pip install reportlab`."
+            )
 
 # ----------------- FLOOR VIEW -----------------
 with tab_floor:
@@ -606,7 +642,9 @@ with tab_floor:
 
     default_floor_str = ""
     try:
-        default_floor_str = str(df[df["Apartment No"] == apt_no].iloc[0]["Floor"])
+        default_floor_str = str(
+            df[df["Apartment No"] == apt_no].iloc[0]["Floor"]
+        )
     except Exception:
         pass
 
@@ -655,14 +693,12 @@ with tab_floor:
             table_floor_df = pd.DataFrame(table_floor)
 
             table_floor_styled = (
-                table_floor_df.style
-                .format(
+                table_floor_df.style.format(
                     {
                         "Floor Progress (%)": "{:.1f}",
                         "I-Tower Progress (%)": "{:.1f}",
                     }
-                )
-                .map(
+                ).map(
                     color_progress,
                     subset=[
                         "Floor Progress (%)",
@@ -673,7 +709,7 @@ with tab_floor:
 
             st.dataframe(table_floor_styled, use_container_width=True)
 
-            # PDF download for Floor View
+            # Floor PDF download
             if REPORTLAB_AVAILABLE:
                 pdf_bytes_floor = make_pdf_floor(
                     floor_value=floor_query,
@@ -726,17 +762,18 @@ with tab_tower:
     st.subheader("📋 I-Tower Activity Progress")
 
     table_tower_styled = (
-        table_tower_df.style
-        .format({"I-Tower Progress (%)": "{:.1f}"})
-        .map(color_progress, subset=["I-Tower Progress (%)"])
+        table_tower_df.style.format(
+            {"I-Tower Progress (%)": "{:.1f}"}
+        ).map(color_progress, subset=["I-Tower Progress (%)"])
     )
 
     st.dataframe(table_tower_styled, use_container_width=True)
 
-    # PDF download for Tower Summary
+    # Tower PDF download
     if REPORTLAB_AVAILABLE:
         pdf_bytes_tower = make_pdf_tower(
-            tower_overall=tower_overall, table_df=table_tower_df
+            tower_overall=tower_overall,
+            table_df=table_tower_df,
         )
         st.download_button(
             "📂 Download Tower PDF Report",
@@ -745,4 +782,6 @@ with tab_tower:
             mime="application/pdf",
         )
     else:
-        st.info("To enable PDF download, install reportlab: `pip install reportlab`.")
+        st.info(
+            "To enable PDF download, install reportlab: `pip install reportlab`."
+        )
