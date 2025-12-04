@@ -1,28 +1,30 @@
 import streamlit as st
+
+# --- MUST BE FIRST: OG Tags ---
+st.markdown("""
+    <head>
+        <meta property="og:title" content="I-TOWER LCRG Progress" />
+        <meta property="og:description" content="Live Construction Progress – I Tower (LCRG)" />
+        <meta property="og:image" content="https://raw.githubusercontent.com/Muneebbutt78/tower-progress-app/main/favicon.png" />
+        <meta property="og:type" content="website" />
+    </head>
+""", unsafe_allow_html=True)
+
+from PIL import Image
 import pandas as pd
 import altair as alt
 from pathlib import Path
 from io import BytesIO
 from zipfile import ZipFile
-from PIL import Image
 import re
 
-# ---------- ICON & PAGE CONFIG ----------
 icon = Image.open("favicon.png")
 
 st.set_page_config(
     page_title="I-Tower LCRG Progress Dashboard",
     page_icon=icon,
-    layout="wide",
+    layout="wide"
 )
-
-# ---------- OPEN GRAPH (WHATSAPP / SOCIAL PREVIEW) ----------
-st.markdown("""
-    <meta property="og:title" content="I-TOWER LCRG Progress" />
-    <meta property="og:description" content="Live Construction Progress – I Tower (LCRG)" />
-    <meta property="og:image" content="https://raw.githubusercontent.com/Muneebbutt78/tower-progress-app/main/favicon.png" />
-    <meta property="og:type" content="website" />
-""", unsafe_allow_html=True)
 
 # ---------- PDF REPORTLIB ----------
 try:
@@ -385,20 +387,25 @@ def load_data(uploaded_file=None):
 
 
 # ----------------- SIDEBAR -----------------
+# HIDE UPLOAD CONTROLS
+# st.sidebar.title("🔧 Controls")
+# uploaded_excel = st.sidebar.file_uploader("Upload progress Excel (optional)", type=["xlsx"])
+# photos_zip_file = st.sidebar.file_uploader("Upload Apartment Photos ZIP (optional)", type=["zip"])
 st.sidebar.title("🔧 Controls")
 
-uploaded_excel = st.sidebar.file_uploader(
-    "Upload progress Excel (optional)", type=["xlsx"]
-)
+# ---- HIDE FILE UPLOADS ----
+# uploaded_excel = st.sidebar.file_uploader("Upload progress Excel (optional)", type=["xlsx"])
+# photos_zip_file = st.sidebar.file_uploader("Upload Apartment Photos ZIP (optional)", type=["zip"])
+# if photos_zip_file is not None:
+#     photos_dict = load_photos_zip(photos_zip_file.getvalue())
+# else:
+#     photos_dict = {}
 
-photos_zip_file = st.sidebar.file_uploader(
-    "Upload Apartment Photos ZIP (optional)", type=["zip"]
-)
-if photos_zip_file is not None:
-    photos_dict = load_photos_zip(photos_zip_file.getvalue())
-else:
-    photos_dict = {}
+# Force using default Excel file & no photos
+uploaded_excel = None
+photos_dict = {}
 
+# Load default Excel file
 df = load_data(uploaded_excel)
 
 if df.empty:
