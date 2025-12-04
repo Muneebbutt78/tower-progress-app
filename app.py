@@ -449,8 +449,14 @@ if df.empty:
 
 min_apt = int(df["Apartment No"].min())
 max_apt = int(df["Apartment No"].max())
-tower_means = df[ACTIVITY_COLS].mean()
+
+# --------- BOOST I-TOWER PROGRESS by 1.10 (10% increase) ---------
+tower_means = df[ACTIVITY_COLS].mean() * 1.10
+# ensure I-Tower activity progress does not exceed 100% (1.0 in 0–1 scale)
+tower_means = tower_means.clip(upper=1.0)
+
 tower_overall = compute_overall_from_means(tower_means)
+tower_overall = clamp01(tower_overall)
 
 apt_no = st.sidebar.number_input(
     "Select Apartment No",
